@@ -138,6 +138,9 @@ public interface HeapDumpAnalyzer {
     @ApiMeta(aliases = "leak.report")
     LeakReport getLeakReport();
 
+    @ApiMeta(aliases = "script")
+    String getScriptResult(String scriptTextInJS);
+
     @ApiMeta(aliases = "oql")
     OQLResult getOQLResult(String oql, String sortBy, boolean ascendingOrder, int page, int pageSize);
 

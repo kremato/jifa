@@ -45,6 +45,7 @@ export default {
     classLoaders: 'Class Loaders',
     duplicateClasses: 'Duplicated Classes',
     query: 'OQL',
+    scripts: 'Scripts',
 
     inspector: 'Inspector',
     statics: 'Statics',

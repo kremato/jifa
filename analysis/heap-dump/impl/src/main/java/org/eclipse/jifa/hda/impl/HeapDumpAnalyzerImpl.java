@@ -67,6 +67,7 @@ import org.eclipse.mat.snapshot.model.IPrimitiveArray;
 import org.eclipse.mat.snapshot.model.ObjectReference;
 import org.eclipse.mat.snapshot.query.Icons;
 import org.eclipse.mat.snapshot.query.SnapshotQuery;
+import org.graalvm.polyglot.Context;
 
 import java.lang.ref.Cleaner;
 import java.lang.ref.SoftReference;
@@ -1209,6 +1210,20 @@ public class HeapDumpAnalyzerImpl implements HeapDumpAnalyzer {
             }
             return report;
         });
+    }
+
+    @Override
+    public String getScriptResult(String scriptTextInJS) {
+        try (Context context = Context.newBuilder()
+                .allowAllAccess(true)
+                .hostClassLoader(this.context.snapshot.getClass().getClassLoader())
+                .build()) {
+            context.getBindings("js").putMember("snapshot", this.context.snapshot);
+            return context.eval("js", scriptTextInJS).toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     @Cacheable
