@@ -25,6 +25,7 @@
     "jsencrypt": "^3.3.2",
     "lodash": "^4.17.21",
     "mitt": "^3.0.1",
+    "monaco-editor": "^0.52.2",
     "nprogress": "^0.2.0",
     "pinia": "^2.1.6",
     "sass": "^1.65.1",
