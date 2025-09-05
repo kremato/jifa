@@ -22,6 +22,9 @@ import '@/styles/index.scss';
 import 'element-plus/dist/index.css';
 import 'v-contextmenu/dist/themes/default.css';
 
+// monaco web worker setup
+import './monacoWorker';
+
 const app = createApp(App);
 app.use(createPinia());
 app.use(i18n);

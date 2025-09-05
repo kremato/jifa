@@ -68,6 +68,7 @@ import org.eclipse.mat.snapshot.model.ObjectReference;
 import org.eclipse.mat.snapshot.query.Icons;
 import org.eclipse.mat.snapshot.query.SnapshotQuery;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Value;
 
 import java.lang.ref.Cleaner;
 import java.lang.ref.SoftReference;
@@ -1212,17 +1213,82 @@ public class HeapDumpAnalyzerImpl implements HeapDumpAnalyzer {
         });
     }
 
+    public OQLResult getOQLResult(IResult result, String sortBy, boolean ascendingOrder, int page, int pageSize) {
+        return $(() -> {
+            if (result instanceof IResultTree) {
+                return new OQLResult.TreeResult(
+                        PageViewBuilder.build(
+                                ((IResultTree) result).getElements(),
+                                new PagingRequest(page, pageSize),
+                                e -> $(() -> context.snapshot.getObject(((IResultTree) result).getContext(e).getObjectId())),
+                                o -> $(() -> {
+                                    JavaObject jo = new JavaObject();
+                                    jo.setObjectId(o.getObjectId());
+                                    jo.setLabel(o.getDisplayName());
+                                    jo.setSuffix(Helper.suffix(o.getGCRootInfo()));
+                                    jo.setShallowSize(o.getUsedHeapSize());
+                                    jo.setRetainedSize(o.getRetainedHeapSize());
+                                    jo.setGCRoot(context.snapshot.isGCRoot(o.getObjectId()));
+                                    jo.setObjectType(typeOf(o));
+                                    jo.setHasOutbound(true);
+                                    return jo;
+                                }), IObjectSortHelper.sortBy(sortBy, ascendingOrder)));
+            } else if (result instanceof IResultTable) {
+                IResultTable table = (IResultTable) result;
+                Column[] columns = table.getColumns();
+                List<String> cs = Arrays.stream(columns).map(Column::getLabel).collect(Collectors.toList());
+                PageView<OQLResult.TableResult.Entry> pv =
+                        PageViewBuilder.build(new PageViewBuilder.Callback<Object>() {
+                            @Override
+                            public int totalSize() {
+                                return table.getRowCount();
+                            }
+
+                            @Override
+                            public Object get(int index) {
+                                return table.getRow(index);
+                            }
+                        }, new PagingRequest(page, pageSize), o -> {
+                            List<Object> l = new ArrayList<>();
+                            for (int i = 0; i < columns.length; i++) {
+                                Object columnValue = table.getColumnValue(o, i);
+
+                                l.add(columnValue != null ? columnValue.toString() : null);
+                            }
+                            IContextObject co = table.getContext(o);
+                            return new OQLResult.TableResult.Entry(co != null ? co.getObjectId() : Helper.ILLEGAL_OBJECT_ID,
+                                    l);
+                        });
+                return new OQLResult.TableResult(cs, pv);
+            } else if (result instanceof TextResult) {
+                return new OQLResult.TextResult(((TextResult) result).getText());
+            } else {
+                throw new AnalysisException("Unsupported OQL result type");
+            }
+        });
+    }
+
+    public OQLResult resolveScriptResult(Value result) {
+        IResult r;
+        if (result.isHostObject() && result.asHostObject() instanceof IResult) {
+            r = result.asHostObject();
+        } else {
+            r = new TextResult(result.toString());
+        }
+        return getOQLResult(r, "retainedHeap", false, 1, 50);
+    }
+
     @Override
-    public String getScriptResult(String scriptTextInJS) {
+    public OQLResult getScriptResult(String scriptTextInJS) {
         try (Context context = Context.newBuilder()
                 .allowAllAccess(true)
                 .hostClassLoader(this.context.snapshot.getClass().getClassLoader())
                 .build()) {
             context.getBindings("js").putMember("snapshot", this.context.snapshot);
-            return context.eval("js", scriptTextInJS).toString();
+            Value result = context.eval("js", scriptTextInJS);
+            return resolveScriptResult(result);
         } catch (Exception e) {
-            e.printStackTrace();
-            throw e;
+            return new OQLResult.TextResult((new TextResult(e.getMessage())).getText());
         }
     }
 

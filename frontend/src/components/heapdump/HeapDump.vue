@@ -20,7 +20,7 @@ import Threads from '@/components/heapdump/Threads.vue';
 import SystemProperties from '@/components/heapdump/SystemProperties.vue';
 import EnvVariables from '@/components/heapdump/EnvVariables.vue';
 import Query from '@/components/heapdump/Query.vue';
-import Scripts from '@/components/heapdump/Scripts.vue'
+import Scripts from '@/components/heapdump/Scripts.vue';
 import GCRoots from '@/components/heapdump/GCRoots.vue';
 import UnreachableObjects from '@/components/heapdump/UnreachableObjects.vue';
 import ClassLoaders from '@/components/heapdump/ClassLoaders.vue';
