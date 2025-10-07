@@ -73,7 +73,18 @@ public class HeapDumpAnalysisApiExecutor extends AbstractApiExecutor<HeapDumpAna
                 "net.sf.cglib.transform",
                 "net.sf.cglib.transform.impl",
                 "net.sf.cglib.util",
-                "org.apache.commons.lang3"
+                "org.apache.commons.lang3",
+                "jdk.internal.access",
+                "jdk.internal.module",
+                "jdk.vm.ci.services",
+                "jdk.vm.ci.runtime",
+                "jdk.vm.ci.hotspot",
+                "jdk.vm.ci.code",
+                "jdk.vm.ci.code.stack",
+                "jdk.vm.ci.common",
+                "jdk.vm.ci.meta",
+                "jdk.internal.misc",
+                "jdk.internal.foreign"
         };
         config.put(Constants.FRAMEWORK_SYSTEMPACKAGES_EXTRA, String.join(",", extras));
         try {
