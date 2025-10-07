@@ -68,7 +68,9 @@ import org.eclipse.mat.snapshot.model.ObjectReference;
 import org.eclipse.mat.snapshot.query.Icons;
 import org.eclipse.mat.snapshot.query.SnapshotQuery;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.io.FileSystem;
 
 import java.lang.ref.Cleaner;
 import java.lang.ref.SoftReference;
@@ -1279,17 +1281,27 @@ public class HeapDumpAnalyzerImpl implements HeapDumpAnalyzer {
     }
 
     @Override
-    public OQLResult getScriptResult(String scriptTextInJS) {
+    public OQLResult getScriptResult(String entryPath, Map<String, String> payload) {
+        FileSystem inMemFs = new InMemoryFileSystem(payload);
         try (Context context = Context.newBuilder()
                 .allowAllAccess(true)
+                .fileSystem(inMemFs)
+                .allowExperimentalOptions(true)
+                .option("js.esm-eval-returns-exports", "true")
                 .hostClassLoader(this.context.snapshot.getClass().getClassLoader())
+                .out(System.out)
+                .err(System.err)
                 .build()) {
+            String entryCode = payload.get(entryPath);
+            Source entrySource = Source.newBuilder("js", entryCode, entryPath).build();
             context.getBindings("js").putMember("snapshot", this.context.snapshot);
-            Value result = context.eval("js", scriptTextInJS);
-            return resolveScriptResult(result);
+            Value result = context.eval(entrySource);
+            if (result.hasMember("result"))
+                return resolveScriptResult(result.getMember("result"));
         } catch (Exception e) {
             return new OQLResult.TextResult((new TextResult(e.getMessage())).getText());
         }
+        return new OQLResult.TextResult("No Result");
     }
 
     @Cacheable

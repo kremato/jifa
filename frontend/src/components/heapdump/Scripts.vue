@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import Editor from './Editor.vue';
 import CommonTable from '@/components/heapdump/CommonTable.vue';
 import { hdt } from '@/components/heapdump/utils';
@@ -8,12 +8,15 @@ import { prettySize } from '@/support/utils';
 import { t } from '@/i18n/i18n';
 import { useSelectedObject } from '@/composables/heapdump/selected-object';
 import { commonMenu as menu } from '@/components/heapdump/menu';
+import FileExplorer from './FileExplorer.vue';
 
 const { selectedObjectId } = useSelectedObject();
 
 const input = ref(null);
 const script = ref('');
 const last = ref('');
+const activeFilePath = ref('');
+const fileContents = ref(new Map<string, string>());
 
 const showDataTable = ref(false);
 const textResult = ref(null);
@@ -21,6 +24,16 @@ const processing = ref(false);
 
 function handleEditorContentChange(newScript: string) {
   script.value = newScript;
+}
+
+function handleRunScript(payload: { activeFilePath: string; fileContents: Map<string, string> }) {
+  const activeFileContent = payload.fileContents.get(payload.activeFilePath);
+
+  script.value = activeFileContent || '';
+  activeFilePath.value = payload.activeFilePath;
+  fileContents.value = payload.fileContents;
+
+  executeScript();
 }
 
 function executeScript() {
@@ -79,7 +92,8 @@ const tableProps = ref({
       api: 'script',
       parameters() {
         return {
-          scriptTextInJS: script.value
+          entryPath: activeFilePath.value,
+          payload: Object.fromEntries(fileContents.value)
         };
       },
       respMapper(r) {
@@ -93,7 +107,6 @@ const tableProps = ref({
             totalSize: 0
           };
         }
-        pushHistory(script.value.trim());
         processing.value = false;
         return r.pv;
       },
@@ -159,60 +172,61 @@ const tableProps = ref({
     return d.hasOwnProperty('objectId');
   }
 });
-
-const scriptHistory = ref([]);
-
-function pushHistory(s) {
-  let history = scriptHistory;
-  s = s.trim();
-  for (let i = 0; i < history.value.length; i++) {
-    if (history.value[i].value === s) {
-      return;
-    }
-  }
-  history.value.unshift({ value: s });
-  if (history.value.length > 8) {
-    history.value.pop();
-  }
-}
 </script>
 
 <template>
-  <div class="script-container">
-    <div class="editor-pane">
-      <Editor @content-changed="handleEditorContentChange" />
-      <el-button @click="executeScript" class="run-button" type="primary">Run Script</el-button>
-    </div>
-    <div class="output-pane">
-      <CommonTable v-bind="tableProps" v-if="showDataTable" />
+  <div class="scripts-wrapper">
+    <div class="script-container">
+      <div style="width: 25%; height: 100%">
+        <FileExplorer />
+      </div>
+      <el-divider direction="vertical" style="height: 100%; margin: 0" />
+      <div style="display: flex; flex-direction: column; width: 75%; height: 100%">
+        <Editor
+          class="editor-pane"
+          @content-changed="handleEditorContentChange"
+          @run-script="handleRunScript"
+        />
+        <div class="output-pane">
+          <CommonTable v-bind="tableProps" v-if="showDataTable" />
 
-      <el-table
-        size="small"
-        :data="textResult"
-        v-if="textResult"
-        style="height: 100%"
-        :header-cell-style="{
-          background: 'var(--el-fill-color-light)',
-          color: 'var(--el-text-color-primary)'
-        }"
-      >
-        <el-table-column :label="t('common.result')">
-          <div style="white-space: pre-wrap">
-            {{ textResult[0].text }}
-          </div>
-        </el-table-column>
-      </el-table>
+          <el-table
+            size="small"
+            :data="textResult"
+            v-if="textResult"
+            style="height: 100%"
+            :header-cell-style="{
+              background: 'var(--el-fill-color-light)',
+              color: 'var(--el-text-color-primary)'
+            }"
+          >
+            <el-table-column :label="t('common.result')">
+              <div style="white-space: pre-wrap">
+                {{ textResult[0].text }}
+              </div>
+            </el-table-column>
+          </el-table>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.script-container {
+.scripts-wrapper {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: var(--el-border-radius-base);
+}
+
+.script-container {
+  display: flex;
+  flex-direction: row;
   height: 100%;
   width: 100%;
-  box-shadow: var(--el-border-color-light) 0px 0px 10px;
 }
 
 .editor-pane {
@@ -229,7 +243,6 @@ function pushHistory(s) {
 
 .output-pane {
   height: 30%;
-  position: relative;
   border-top: 1px solid var(--el-border-color-light);
 }
 </style>

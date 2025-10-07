@@ -1,37 +1,186 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onBeforeUnmount, computed } from 'vue';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import 'monaco-editor/min/vs/editor/editor.main.css';
+import { useFileSystem } from '@/composables/heapdump/scripts-file-system';
+import { Document, ArrowRight, CaretRight } from '@element-plus/icons-vue';
 
-const emit = defineEmits(['content-changed']);
+const emit = defineEmits(['run-script']);
 
-const monacoEl = ref<HTMLElement | null>(null);
 let editor: monaco.editor.IStandaloneCodeEditor | null = null;
+const monacoEl = ref<HTMLElement | null>(null);
+const { activeFileId, getNodePath } = useFileSystem();
 
-onMounted(() => {
-  if (!monacoEl.value) return;
+watch(
+  activeFileId,
+  async (newId, oldId) => {
+    if (newId && newId !== oldId) {
+      const path = getNodePath(newId);
+      if (path) {
+        await openFile(path);
+      }
+    }
+  },
+  { immediate: true }
+);
+
+onBeforeUnmount(() => {
+  disposeEditor();
+});
+
+function disposeEditor() {
+  editor?.dispose();
+  editor = null;
+}
+
+async function createEditor() {
+  if (!monacoEl.value || editor) return;
 
   editor = monaco.editor.create(monacoEl.value, {
-    value: '// write your script here\n',
-    language: 'javascript',
     automaticLayout: true,
     minimap: {
       enabled: false
-    }
+    },
+    lineNumbers: 'on',
+    lineNumbersMinChars: 3,
+    glyphMargin: false,
+    folding: true,
+    lineDecorationsWidth: 0,
+    renderLineHighlight: 'line'
   });
+}
 
-  editor.onDidChangeModelContent(() => {
-    const currentContent = editor?.getValue();
-    emit('content-changed', currentContent);
-  });
+async function openFile(path: string) {
+  // Ensure editor exists and is connected to DOM
+  if (!editor || !editor.getDomNode()) {
+    disposeEditor();
+    await createEditor();
+  }
+
+  const model = monaco.editor.getModel(monaco.Uri.file(path));
+  if (model && editor) editor.setModel(model);
+}
+
+const activeFilePathAsList = computed(() => {
+  let path = activeFileId.value ? getNodePath(activeFileId.value) : '';
+  if (path?.startsWith('/')) {
+    path = path.slice(1);
+  }
+  return path ? path.split('/') : [];
 });
 
-onBeforeUnmount(() => {
-  editor?.dispose();
-  editor = null;
-});
+function runScript() {
+  if (!activeFileId.value) return;
+
+  // Get all Monaco models and their contents
+  const allModels = monaco.editor.getModels();
+  const fileContents = new Map<string, string>();
+
+  allModels.forEach((model) => {
+    const filePath = model.uri.path.startsWith('/') ? model.uri.path.slice(1) : model.uri.path;
+    fileContents.set(filePath, model.getValue());
+  });
+
+  let activeFilePath = getNodePath(activeFileId.value);
+  if (!activeFilePath) return;
+
+  activeFilePath = activeFilePath.startsWith('/') ? activeFilePath.slice(1) : activeFilePath;
+
+  emit('run-script', { activeFilePath, fileContents });
+}
 </script>
 
 <template>
-  <div style="height: 100%; width: 100%" ref="monacoEl"></div>
+  <div v-if="!activeFileId" class="welcome-screen">
+    <div class="welcome-content">
+      <el-text tag="b" size="large">Welcome to the Script Editor</el-text>
+      <el-text tag="p" size="large">
+        Please select a file from the file explorer to start editing.
+      </el-text>
+    </div>
+  </div>
+
+  <!-- Make sure editor always has a DOM node to attach to by using v-show -->
+  <div v-show="activeFileId" class="editor-content">
+    <div class="file-header" style="margin-right: 1rem">
+      <div class="file-header">
+        <el-icon class="el-icon--left">
+          <Document />
+        </el-icon>
+        <el-breadcrumb :separator-icon="ArrowRight">
+          <el-breadcrumb-item v-for="(segment, index) in activeFilePathAsList" :key="index">
+            {{ segment }}
+          </el-breadcrumb-item>
+        </el-breadcrumb>
+      </div>
+      <el-button
+        type="text"
+        plain
+        style="padding-top: 0rem; padding-bottom: 0rem; padding-left: 0rem; padding-right: 0.5rem"
+        @click="runScript"
+      >
+        <el-icon size="24">
+          <CaretRight />
+        </el-icon>
+        Run
+      </el-button>
+    </div>
+    <el-divider style="margin: 0" />
+    <div class="monaco-container" ref="monacoEl"></div>
+  </div>
 </template>
+
+<style scoped>
+.editor-container {
+  height: 100%;
+  width: 100%;
+}
+
+.welcome-screen {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.welcome-content {
+  text-align: center;
+  max-width: 500px;
+  padding: 2rem;
+}
+
+.welcome-title {
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  color: var(--el-text-color-primary);
+}
+
+.welcome-subtitle {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--el-text-color-regular);
+  margin: 0;
+}
+
+.editor-content {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 2.5rem;
+  margin-left: 1rem;
+}
+
+.monaco-container {
+  flex: 1;
+  width: 100%;
+}
+</style>

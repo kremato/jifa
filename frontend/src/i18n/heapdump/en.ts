@@ -99,7 +99,12 @@ export default {
     outbounds: 'Outgoing',
     inbounds: 'Incoming',
     pathToGCRoots: 'Path to GC Roots',
-    mergedPathToGCRoots: 'Merged Path to GC Roots'
+    mergedPathToGCRoots: 'Merged Path to GC Roots',
+    newFile: 'New File',
+    newFolder: 'New Folder',
+    rename: 'Rename',
+    delete: 'Delete',
+    scripts: 'Scripts',
   },
 
   placeholder: {

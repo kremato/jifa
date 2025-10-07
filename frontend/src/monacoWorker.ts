@@ -13,3 +13,11 @@ self.MonacoEnvironment = {
 };
 
 monaco.languages.typescript.typescriptDefaults.setEagerModelSync(true);
+
+monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+  checkJs: true,
+  allowJs: true,
+  target: monaco.languages.typescript.ScriptTarget.ES2020,
+  module: monaco.languages.typescript.ModuleKind.ES2015
+});
+monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);

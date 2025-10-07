@@ -21,7 +21,12 @@ export enum EventType {
   CLASS_INBOUNDS,
 
   PATH_TO_GC_ROOTS,
-  MERGED_PATH_TO_GC_ROOTS
+  MERGED_PATH_TO_GC_ROOTS,
+
+  FILE_RENAME,
+  FILE_DELETE,
+  FILE_CREATE,
+  FOLDER_CREATE
 }
 
 export function emit(event: EventType, payload: any) {

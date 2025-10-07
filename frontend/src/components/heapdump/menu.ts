@@ -52,3 +52,31 @@ export const commonMenu = menu([
   pathToGCRoots,
   mergedPathToGCRoots
 ]);
+
+const rename = item(title('rename'), (payload) => {
+  emit(EventType.FILE_RENAME, payload);
+});
+
+const deleteItem = item(title('delete'), (payload) => {
+  emit(EventType.FILE_DELETE, payload);
+});
+
+const newFile = item(title('newFile'), (payload) => {
+  emit(EventType.FILE_CREATE, payload);
+});
+
+const newFolder = item(title('newFolder'), (payload) => {
+  emit(EventType.FOLDER_CREATE, payload);
+});
+
+const newFolderWithDivider = item(
+  title('newFolder'),
+  (payload) => {
+    emit(EventType.FOLDER_CREATE, payload);
+  },
+  true
+);
+
+export const folderMenu = menu([newFile, newFolderWithDivider, rename, deleteItem]);
+export const fileMenu = menu([rename, deleteItem]);
+export const explorerMenu = menu([newFile, newFolder]);
