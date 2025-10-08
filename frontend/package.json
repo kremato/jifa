@@ -20,6 +20,7 @@
     "chart.js": "^4.4.0",
     "echarts": "^5.4.3",
     "element-plus": "^2.6.0",
+    "fflate": "^0.8.2",
     "js-base64": "^3.7.5",
     "js-cookie": "^3.0.5",
     "jsencrypt": "^3.3.2",

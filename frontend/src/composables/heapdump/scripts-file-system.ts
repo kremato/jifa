@@ -1,3 +1,5 @@
+import { strToU8, zipSync } from 'fflate';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { computed, ref } from 'vue';
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
@@ -345,6 +347,19 @@ export function useFileSystem() {
     triggerRef(root);
   }
 
+  async function exportAsZip(): Promise<Blob> {
+    const files = monaco.editor.getModels().reduce(
+      (record, model) => {
+        let path = model.uri.path;
+        if (path.startsWith('/')) path = path.slice(1);
+        record[path] = strToU8(model.getValue());
+        return record;
+      },
+      {} as Record<string, Uint8Array>
+    );
+    return new Blob([new Uint8Array(zipSync(files))]);
+  }
+
   return {
     // state
     root: readonly(root),
@@ -365,6 +380,7 @@ export function useFileSystem() {
     // active file operations
     setActiveFile,
     // bulk operations
-    importFiles
+    importFiles,
+    exportAsZip
   };
 }

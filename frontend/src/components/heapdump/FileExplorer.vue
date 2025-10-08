@@ -42,6 +42,7 @@ const {
   setActiveFile,
   generateUniqueId,
   importFiles,
+  exportAsZip,
   isMjsFile,
   validateLabel,
   forbiddenChars
@@ -49,7 +50,16 @@ const {
 
 const ROOT_ID = root.value.id;
 
-// Function to trigger folder picker
+const downloadAsZip = async () => {
+  const blob = await exportAsZip();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'jifa-scripts.zip';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
 const pickFolder = () => dirInput.value?.click();
 
 const onDirPicked = async (e: Event) => {
@@ -358,7 +368,7 @@ listen(EventType.FOLDER_CREATE, async (payload: Node) => {
   >
     <el-text style="font-weight: 600">File Explorer</el-text>
     <div style="display: flex; justify-content: space-between; gap: 10px">
-      <!-- Use button that triggers hidden input -->
+      <!-- Button triggers hidden input -->
       <el-button type="primary" size="small" plain @click="pickFolder">
         <el-icon size="16">
           <Upload />
@@ -370,12 +380,11 @@ listen(EventType.FOLDER_CREATE, async (payload: Node) => {
         ref="dirInput"
         type="file"
         webkitdirectory
-        multiple
         style="display: none"
         @change="onDirPicked"
       />
 
-      <el-button type="primary" size="small" plain>
+      <el-button type="primary" size="small" plain @click="downloadAsZip">
         <el-icon size="16">
           <Download />
         </el-icon>
