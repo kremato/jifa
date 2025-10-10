@@ -537,6 +537,19 @@ public interface Model {
 
     }
 
+    class ScriptResult {
+
+        public OQLResult oqlResult;
+        public String stdOut;
+        public String stdErr;
+
+        public ScriptResult(OQLResult oqlResult, String stdOut, String stdErr) {
+            this.oqlResult = oqlResult;
+            this.stdOut = stdOut;
+            this.stdErr = stdErr;
+        }
+    }
+
     interface GCRootPath {
 
         List<String> EXCLUDES = Arrays.asList("java.lang.ref.WeakReference:referent",

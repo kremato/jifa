@@ -70,8 +70,8 @@ import org.eclipse.mat.snapshot.query.SnapshotQuery;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
-import org.graalvm.polyglot.io.FileSystem;
 
+import java.io.ByteArrayOutputStream;
 import java.lang.ref.Cleaner;
 import java.lang.ref.SoftReference;
 import java.net.URL;
@@ -108,6 +108,7 @@ import static org.eclipse.jifa.hda.api.Model.JavaObject;
 import static org.eclipse.jifa.hda.api.Model.LeakReport;
 import static org.eclipse.jifa.hda.api.Model.OQLResult;
 import static org.eclipse.jifa.hda.api.Model.Overview;
+import static org.eclipse.jifa.hda.api.Model.ScriptResult;
 import static org.eclipse.jifa.hda.api.Model.TheString;
 import static org.eclipse.jifa.hda.api.Model.UnreachableObject;
 import static org.eclipse.jifa.hda.api.SearchPredicate.createPredicate;
@@ -1281,27 +1282,32 @@ public class HeapDumpAnalyzerImpl implements HeapDumpAnalyzer {
     }
 
     @Override
-    public OQLResult getScriptResult(String entryPath, Map<String, String> payload) {
-        FileSystem inMemFs = new InMemoryFileSystem(payload);
+    public ScriptResult getScriptResult(String entryPath, Map<String, String> payload) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        OQLResult oqlResult = null;
         try (Context context = Context.newBuilder()
                 .allowAllAccess(true)
-                .fileSystem(inMemFs)
+                .fileSystem(new InMemoryFileSystem(payload))
                 .allowExperimentalOptions(true)
                 .option("js.esm-eval-returns-exports", "true")
                 .hostClassLoader(this.context.snapshot.getClass().getClassLoader())
-                .out(System.out)
-                .err(System.err)
+                .out(out)
+                .err(err)
                 .build()) {
             String entryCode = payload.get(entryPath);
             Source entrySource = Source.newBuilder("js", entryCode, entryPath).build();
             context.getBindings("js").putMember("snapshot", this.context.snapshot);
             Value result = context.eval(entrySource);
             if (result.hasMember("result"))
-                return resolveScriptResult(result.getMember("result"));
+                oqlResult = resolveScriptResult(result.getMember("result"));
         } catch (Exception e) {
-            return new OQLResult.TextResult((new TextResult(e.getMessage())).getText());
+            oqlResult = new OQLResult.TextResult((new TextResult(e.getMessage())).getText());
+        } finally {
+            if (oqlResult == null)
+                oqlResult = new OQLResult.TextResult("No Result");
         }
-        return new OQLResult.TextResult("No Result");
+        return new ScriptResult(oqlResult, out.toString(), err.toString());
     }
 
     @Cacheable
