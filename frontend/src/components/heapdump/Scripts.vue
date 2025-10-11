@@ -173,77 +173,72 @@ const tableProps = ref({
 
 <template>
   <div class="script-container">
-    <div style="width: 25%; height: 100%">
-      <FileExplorer />
-    </div>
-    <el-divider direction="vertical" style="height: 100%; margin: 0" />
-    <div style="display: flex; flex-direction: column; width: 75%; height: 100%">
-      <Editor class="editor-pane" @run-script="handleRunScript" />
-      <div class="output-pane">
-        <el-tabs type="border-card" v-model="activeTab" class="output-tabs">
-          <el-tab-pane
-            v-for="tab in tabs"
-            :key="tab.name"
-            :label="tab.name"
-            :name="tab.name"
-            class="tab-wrapper"
-          >
-            <el-scrollbar v-if="tab.name === RESULT_TAB">
-              <CommonTable v-bind="tableProps" v-if="showDataTable" />
-              <el-table
-                v-if="scriptResult?.text"
-                size="small"
-                :data="[scriptResult]"
-                style="height: 100%"
-                :header-cell-style="{
-                  background: 'var(--el-fill-color-light)',
-                  color: 'var(--el-text-color-primary)'
-                }"
-              >
-                <el-table-column :label="t('common.result')">
-                  <div style="white-space: pre-wrap">{{ scriptResult.text }}</div>
-                </el-table-column>
-              </el-table>
-            </el-scrollbar>
+    <el-splitter>
+      <el-splitter-panel size="25%" min="200" :collapsible="true">
+        <FileExplorer />
+      </el-splitter-panel>
+      <el-splitter-panel style="overflow: hidden">
+        <el-splitter layout="vertical">
+          <el-splitter-panel :collapsible="true" style="overflow: hidden">
+            <Editor @run-script="handleRunScript" />
+          </el-splitter-panel>
+          <el-splitter-panel size="30%" :collapsible="true">
+            <div class="output-pane">
+              <el-tabs type="border-card" v-model="activeTab" class="output-tabs">
+                <el-tab-pane v-for="tab in tabs" :key="tab.name" :label="tab.name" :name="tab.name">
+                  <el-scrollbar v-if="tab.name === RESULT_TAB">
+                    <CommonTable v-bind="tableProps" v-if="showDataTable" />
+                    <el-table
+                      v-if="scriptResult?.text"
+                      size="small"
+                      :data="[scriptResult]"
+                      style="height: 100%"
+                      :header-cell-style="{
+                        background: 'var(--el-fill-color-light)',
+                        color: 'var(--el-text-color-primary)'
+                      }"
+                    >
+                      <el-table-column :label="t('common.result')">
+                        <div style="white-space: pre-wrap">{{ scriptResult.text }}</div>
+                      </el-table-column>
+                    </el-table>
+                  </el-scrollbar>
 
-            <template v-else>
-              <div v-if="!scriptResult?.[tab.key]?.trim()" class="empty-content">
-                <el-text>Nothing to display</el-text>
-              </div>
-              <el-scrollbar v-else>
-                <el-text
-                  tag="pre"
-                  class="console-output"
-                  :type="tab.name === 'Console Error' ? 'danger' : 'info'"
-                >
-                  {{ scriptResult?.[tab.key] || '' }}
-                </el-text>
-              </el-scrollbar>
-            </template>
-          </el-tab-pane>
-        </el-tabs>
-      </div>
-    </div>
+                  <template v-else>
+                    <div v-if="!scriptResult?.[tab.key]?.trim()" class="empty-content">
+                      <el-text>Nothing to display</el-text>
+                    </div>
+                    <el-scrollbar v-else>
+                      <el-text
+                        tag="pre"
+                        class="console-output"
+                        :type="tab.name === 'Console Error' ? 'danger' : 'info'"
+                      >
+                        {{ scriptResult?.[tab.key] || '' }}
+                      </el-text>
+                    </el-scrollbar>
+                  </template>
+                </el-tab-pane>
+              </el-tabs>
+            </div>
+          </el-splitter-panel>
+        </el-splitter>
+      </el-splitter-panel>
+    </el-splitter>
   </div>
 </template>
 
 <style scoped>
 .script-container {
-  display: flex;
-  flex-direction: row;
   width: 100%;
   height: 100%;
   border: 1px solid var(--el-border-color-light);
   border-radius: var(--el-border-radius-base);
 }
 
-.editor-pane {
-  height: 70%;
-  position: relative;
-}
-
 .output-pane {
-  height: 30%;
+  height: 100%;
+  width: 100%;
   min-height: 0;
 }
 
