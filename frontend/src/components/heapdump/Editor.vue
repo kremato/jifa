@@ -9,20 +9,13 @@ const emit = defineEmits(['run-script']);
 
 let editor: monaco.editor.IStandaloneCodeEditor | null = null;
 const monacoEl = ref<HTMLElement | null>(null);
-const { activeFileId, getNodePath } = useFileSystem();
+const { activeFilePath } = useFileSystem();
 
-watch(
-  activeFileId,
-  async (newId, oldId) => {
-    if (newId && newId !== oldId) {
-      const path = getNodePath(newId);
-      if (path) {
-        await openFile(path);
-      }
-    }
-  },
-  { immediate: true }
-);
+watch(activeFilePath, async (newPath, oldPath) => {
+  if (newPath && newPath !== oldPath) {
+    openFile(newPath);
+  }
+});
 
 onBeforeUnmount(() => {
   disposeEditor();
@@ -62,7 +55,7 @@ async function openFile(path: string) {
 }
 
 const activeFilePathAsList = computed(() => {
-  let path = activeFileId.value ? getNodePath(activeFileId.value) : '';
+  let path = activeFilePath.value;
   if (path?.startsWith('/')) {
     path = path.slice(1);
   }
@@ -70,7 +63,7 @@ const activeFilePathAsList = computed(() => {
 });
 
 function runScript() {
-  if (!activeFileId.value) return;
+  if (!activeFilePath.value) return;
 
   // Get all Monaco models and their contents
   const allModels = monaco.editor.getModels();
@@ -81,17 +74,15 @@ function runScript() {
     fileContents.set(filePath, model.getValue());
   });
 
-  let activeFilePath = getNodePath(activeFileId.value);
-  if (!activeFilePath) return;
+  let path = activeFilePath.value;
+  path = path.startsWith('/') ? path.slice(1) : path;
 
-  activeFilePath = activeFilePath.startsWith('/') ? activeFilePath.slice(1) : activeFilePath;
-
-  emit('run-script', { activeFilePath, fileContents });
+  emit('run-script', { activeFilePath: path, fileContents });
 }
 </script>
 
 <template>
-  <div v-if="!activeFileId" class="welcome-screen">
+  <div v-if="!activeFilePath" class="welcome-screen">
     <div class="welcome-content">
       <el-text tag="b" size="large">Welcome to the Script Editor</el-text>
       <el-text tag="p" size="large">
@@ -101,7 +92,7 @@ function runScript() {
   </div>
 
   <!-- Make sure editor always has a DOM node to attach to by using v-show -->
-  <div v-show="activeFileId" class="editor-content">
+  <div v-show="activeFilePath" class="editor-content">
     <div class="file-header" style="margin-right: 1rem">
       <div class="file-header">
         <el-icon class="el-icon--left">

@@ -18,28 +18,29 @@ import {
   type NodeType
 } from '@/composables/heapdump/scripts-file-system';
 
+type TreeNode = RenderContentContext['node'];
+interface EditedNode extends Node {
+  isVirtual: boolean;
+}
+
 const contextmenu = ref();
 const currentMenu = ref(folderMenu);
-const editedNodeId = ref<string | null>(null);
-const editedNodeLabel = ref('');
-const editedNodeType = ref<NodeType | null>(null);
+const editedNode = ref<EditedNode | null>(null);
 const renameInputRef = ref();
 const draggedNode = ref<Node | null>(null);
-const virtualNode = ref<Node | null>(null);
 const dirInput = ref<HTMLInputElement | null>(null);
 const treeRef = ref<TreeInstance>();
 
-type TreeNode = RenderContentContext['node'];
-
 const {
   root,
+  activeFileId,
+  activeFilePath: acrtiveFilePath,
   createNode: addNode,
-  sortedNodes,
+  setActiveFile,
   deleteNode,
   moveNode,
   renameNode,
   isDuplicateLabel,
-  setActiveFile,
   generateUniqueId,
   importFiles,
   exportAsZip,
@@ -47,6 +48,13 @@ const {
   validateLabel,
   forbiddenChars
 } = useFileSystem();
+
+watch(acrtiveFilePath, async (newPath) => {
+  if (newPath && activeFileId.value) {
+    await nextTick();
+    treeRef.value?.setCurrentKey(activeFileId.value);
+  }
+});
 
 const ROOT_ID = root.value.id;
 
@@ -171,10 +179,7 @@ const handleTreeContextMenu = (event: MouseEvent) => {
 };
 
 function resetRename() {
-  editedNodeId.value = null;
-  editedNodeLabel.value = '';
-  editedNodeType.value = null;
-  virtualNode.value = null;
+  editedNode.value = null;
 }
 
 function focusRenameInput() {
@@ -185,46 +190,50 @@ function focusRenameInput() {
 }
 
 const handleNodeClick = (data: Node) => {
-  if (data.type === 'file' && virtualNode.value?.id !== data.id) {
+  if (data.type === 'file' && !(editedNode.value?.isVirtual && editedNode.value.id === data.id)) {
     setActiveFile(data.id);
   }
 };
 
 function saveRename() {
-  const nodeId = editedNodeId.value;
-  const newLabel = editedNodeLabel.value.trim();
-
-  if (!nodeId) {
+  if (!editedNode.value) {
     resetRename();
     return;
   }
 
-  // If it's a virtual node and name is empty, just cancel
-  if (virtualNode.value && !newLabel) {
+  const isVirtual = editedNode.value.isVirtual;
+  const newLabel = editedNode.value.label.trim();
+
+  // If it's a virtual node and label is empty, just cancel
+  if (isVirtual && !newLabel) {
     resetRename();
     return;
   }
 
-  // If name is empty for existing item, keep original name
-  if (!newLabel && !virtualNode.value) {
+  // If label is empty for existing node, keep original label
+  if (!newLabel && !isVirtual) {
     resetRename();
     return;
   }
 
   if (!validateLabel(newLabel)) {
-    const formattedChars = forbiddenChars.map((char) => `"${char}"`).join(', ');
-    ElMessage.error(`The following characters are not allowed: ${formattedChars}`);
+    ElMessage.error(
+      `The following characters are not allowed: ${forbiddenChars
+        .map((char) => `"${char}"`)
+        .join(', ')}`
+    );
     nextTick(() => focusRenameInput());
     return;
   }
 
-  if (editedNodeType.value === 'file' && !isMjsFile(newLabel)) {
+  const nodeType = editedNode.value.type;
+  if (nodeType === 'file' && !isMjsFile(newLabel)) {
     ElMessage.error('File names must end with ".mjs" extension');
     nextTick(() => focusRenameInput());
     return;
   }
 
-  const parent = (treeRef.value?.getNode(nodeId)?.data as Node).parent;
+  const parent = editedNode.value.parent;
 
   if (!parent) {
     resetRename();
@@ -237,11 +246,10 @@ function saveRename() {
     return;
   }
 
-  if (virtualNode.value) {
-    // Create new node
-    addNode(getParentIdForVirtualNode(), newLabel, virtualNode.value.type);
+  if (isVirtual) {
+    addNode(parent.id, newLabel, nodeType);
   } else {
-    renameNode(nodeId, newLabel);
+    renameNode(editedNode.value.id, newLabel);
   }
 
   resetRename();
@@ -254,7 +262,7 @@ function handleRenameKeydown(event: Event | KeyboardEvent) {
     saveRename();
   } else if (keyboardEvent.key === 'Escape') {
     keyboardEvent.preventDefault();
-    if (editedNodeId.value) {
+    if (editedNode.value) {
       // For existing and virtual nodes, just cancel rename
       resetRename();
     }
@@ -262,8 +270,10 @@ function handleRenameKeydown(event: Event | KeyboardEvent) {
 }
 
 listen(EventType.FILE_RENAME, async (payload: Node) => {
-  editedNodeId.value = payload.id;
-  editedNodeLabel.value = payload.label;
+  editedNode.value = {
+    ...payload,
+    isVirtual: false
+  };
 
   await nextTick();
   focusRenameInput();
@@ -287,40 +297,36 @@ listen(EventType.FILE_DELETE, async (payload: Node) => {
 
 async function createNode(parent: Node, type: NodeType) {
   const nodeId = generateUniqueId();
-  const label = type === 'file' ? 'New File' : 'New Folder';
+  const label = type === 'file' ? 'new-file.mjs' : 'New Folder';
 
-  virtualNode.value = {
+  editedNode.value = {
     id: nodeId,
     label: label,
     type: type,
     parent: parent,
-    children: []
+    children: [],
+    isVirtual: true
   };
 
-  editedNodeId.value = nodeId;
-  editedNodeLabel.value = label;
-  editedNodeType.value = type;
-
-  // Wait for Vue to update the DOM before focusing
   await nextTick();
   focusRenameInput();
 }
 
 // Computed property that merges virtual node with real nodes
 const displayNodes = computed(() => {
-  if (!virtualNode.value) {
-    return sortedNodes.value;
+  if (!editedNode.value?.isVirtual) {
+    return root.value.children;
   }
 
   // Find where to insert the virtual node
-  const parentId = getParentIdForVirtualNode();
+  const parentId = editedNode.value.parent!.id;
 
   const insertVirtualNode = (nodes: Node[]): Node[] => {
     return nodes.map((node) => {
       if (node.id === parentId) {
         return {
           ...node,
-          children: [virtualNode.value!, ...node.children]
+          children: [editedNode.value!, ...node.children]
         };
       } else if (node.children.length > 0) {
         return {
@@ -333,128 +339,125 @@ const displayNodes = computed(() => {
   };
 
   if (parentId === ROOT_ID) {
-    return [virtualNode.value, ...sortedNodes.value];
+    return [editedNode.value, ...root.value.children];
   } else {
-    return insertVirtualNode(sortedNodes.value);
+    return insertVirtualNode(root.value.children);
   }
 });
 
-let virtualNodeParentId = ROOT_ID;
-
-function getParentIdForVirtualNode(): string {
-  return virtualNodeParentId;
-}
-
 listen(EventType.FILE_CREATE, async (payload: Node) => {
-  virtualNodeParentId = payload.id;
   await createNode(payload, 'file');
 });
 
 listen(EventType.FOLDER_CREATE, async (payload: Node) => {
-  virtualNodeParentId = payload.id;
   await createNode(payload, 'folder');
 });
 </script>
 
 <template>
-  <div
-    style="
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-inline: 1rem;
-      height: 2.5rem;
-    "
-  >
-    <el-text style="font-weight: 600">File Explorer</el-text>
-    <div style="display: flex; justify-content: space-between; gap: 10px">
-      <!-- Button triggers hidden input -->
-      <el-button type="primary" size="small" plain @click="pickFolder">
-        <el-icon size="16">
-          <Upload />
-        </el-icon>
-      </el-button>
-
-      <!-- Hidden input for folder selection -->
-      <input
-        ref="dirInput"
-        type="file"
-        webkitdirectory
-        style="display: none"
-        @change="onDirPicked"
-      />
-
-      <el-button type="primary" size="small" plain @click="downloadAsZip">
-        <el-icon size="16">
-          <Download />
-        </el-icon>
-      </el-button>
-    </div>
-  </div>
-  <el-divider style="margin: 0" />
-  <CommonContextMenu :menu="currentMenu" ref="contextmenu" />
-  <div class="tree-container" @drop="handleTreeDrop" @dragover="handleTreeDragOver">
-    <el-tree
-      ref="treeRef"
-      style="height: 100%"
-      :allow-drop="allowDrop"
-      :allow-drag="(_: TreeNode) => true"
-      :data="displayNodes"
-      draggable
-      default-expand-all
-      node-key="id"
-      @contextmenu="handleTreeContextMenu"
-      @node-click="handleNodeClick"
-      @node-contextmenu="handleNodeContextMenu"
-      @node-drag-start="handleDragStart"
-      @node-drag-end="handleDragEnd"
-      @node-drop="handleDrop"
+  <div style="height: 100%; display: flex; flex-direction: column">
+    <div
+      style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-inline: 1rem;
+        height: 2.5rem;
+      "
     >
-      <template #default="{ node, data }">
-        <div class="custom-tree-node">
-          <el-icon class="el-icon--left">
-            <Document v-if="data.type === 'file'" />
-            <Folder v-else="!node.expanded" />
+      <el-text style="font-weight: 600">File Explorer</el-text>
+      <div style="display: flex; justify-content: space-between; gap: 10px">
+        <!-- Button triggers hidden input -->
+        <el-button type="primary" size="small" plain @click="pickFolder">
+          <el-icon size="16">
+            <Upload />
           </el-icon>
+        </el-button>
 
-          <el-input
-            v-if="editedNodeId === data.id"
-            ref="renameInputRef"
-            v-model="editedNodeLabel"
-            size="small"
-            @blur="saveRename"
-            @keydown="handleRenameKeydown"
-          />
+        <!-- Hidden input for folder selection -->
+        <input
+          ref="dirInput"
+          type="file"
+          webkitdirectory
+          style="display: none"
+          @change="onDirPicked"
+        />
 
-          <span v-else>{{ node.label }}</span>
-        </div>
-      </template>
-      <template #empty>
-        <div
-          style="
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            justify-content: center;
-            align-items: center;
-          "
-        >
-          <div style="text-align: center; padding: 2rem; color: var(--el-text-color-secondary)">
-            <el-icon size="48" style="margin-bottom: 1rem">
-              <Folder />
+        <el-button type="primary" size="small" plain @click="downloadAsZip">
+          <el-icon size="16">
+            <Download />
+          </el-icon>
+        </el-button>
+      </div>
+    </div>
+    <el-divider style="margin: 0" />
+    <CommonContextMenu :menu="currentMenu" ref="contextmenu" />
+    <div class="tree-container" @drop="handleTreeDrop" @dragover="handleTreeDragOver">
+      <el-tree
+        ref="treeRef"
+        style="height: 100%"
+        :allow-drop="allowDrop"
+        :allow-drag="(_: TreeNode) => true"
+        :data="displayNodes"
+        draggable
+        default-expand-all
+        node-key="id"
+        highlight-current
+        @contextmenu="handleTreeContextMenu"
+        @node-click="handleNodeClick"
+        @node-contextmenu="handleNodeContextMenu"
+        @node-drag-start="handleDragStart"
+        @node-drag-end="handleDragEnd"
+        @node-drop="handleDrop"
+      >
+        <template #default="{ node, data }">
+          <div class="custom-tree-node">
+            <el-icon class="el-icon--left">
+              <Document v-if="data.type === 'file'" />
+              <Folder v-else="!node.expanded" />
             </el-icon>
-            <div>No files or folders</div>
-            <div style="font-size: 0.9em; margin-top: 0.5rem">Right-click to create new files</div>
+
+            <el-input
+              v-if="editedNode?.id === data.id"
+              ref="renameInputRef"
+              v-model="editedNode!.label"
+              size="small"
+              @blur="saveRename"
+              @keydown="handleRenameKeydown"
+            />
+
+            <span v-else>{{ node.label }}</span>
           </div>
-        </div>
-      </template>
-    </el-tree>
+        </template>
+        <template #empty>
+          <div
+            style="
+              display: flex;
+              flex-direction: column;
+              height: 100%;
+              justify-content: center;
+              align-items: center;
+            "
+          >
+            <div style="text-align: center; padding: 2rem; color: var(--el-text-color-secondary)">
+              <el-icon size="48" style="margin-bottom: 1rem">
+                <Folder />
+              </el-icon>
+              <div>No files or folders</div>
+              <div style="font-size: 0.9em; margin-top: 0.5rem">
+                Right-click to create new files
+              </div>
+            </div>
+          </div>
+        </template>
+      </el-tree>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .tree-container {
-  height: 100%;
+  flex: 1;
 }
 
 .custom-tree-node {

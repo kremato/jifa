@@ -17,7 +17,7 @@ export interface Node {
 
 const ROOT_ID = 'root';
 
-const root = ref<Node>({
+const root = shallowRef<Node>({
   id: ROOT_ID,
   label: '/',
   type: 'folder',
@@ -28,6 +28,7 @@ const nodeMap = new Map<string, Node>();
 nodeMap.set(root.value.id, root.value);
 
 const activeFileId = ref<string | null>(null);
+const activeFilePath = ref<string | null>(null);
 
 export function useFileSystem() {
   const { createMonacoModel, deleteMonacoFile, renameMonacoFile } = useMonacoFileManager();
@@ -36,29 +37,7 @@ export function useFileSystem() {
   // COMPUTED PROPERTIES
   // ============================
 
-  const sortedNodes = computed(() => toViewTree(root.value.children));
-
-  // ============================
-  // TREE UTILITIES
-  // ============================
-
-  function toViewTree(nodes: Node[]): Node[] {
-    return nodes.map((n) => ({
-      id: n.id,
-      label: n.label,
-      type: n.type,
-      children: toViewTree(n.children)
-    }));
-  }
-
-  function sortChildren(parent: Node) {
-    parent.children.sort((a, b) => {
-      // Place folders before files
-      if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
-      // Then sort alphabetically by label
-      return a.label.localeCompare(b.label);
-    });
-  }
+  const clonedRoot = computed<Node>(() => structuredClone(root.value));
 
   // ============================
   // NODE LOOKUP & VALIDATION
@@ -88,8 +67,17 @@ export function useFileSystem() {
   }
 
   // ============================
-  // NODE PATH UTILITIES
+  // NODE & PATH UTILITIES
   // ============================
+
+  function sortChildren(parent: Node) {
+    parent.children.sort((a, b) => {
+      // Place folders before files
+      if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+      // Then sort alphabetically by label
+      return a.label.localeCompare(b.label);
+    });
+  }
 
   function generateUniqueId(): string {
     return uuidv4();
@@ -122,11 +110,11 @@ export function useFileSystem() {
    */
   function getAffectedNodes(
     nodeId: string,
-    filesOnly: boolean = false
+    type: NodeType | undefined = undefined
   ): { id: string; path: string }[] {
     const affectedNodes: { id: string; path: string }[] = [];
     const collectNodes = (node: Node) => {
-      if (!filesOnly || node.type === 'file') {
+      if (!type || node.type === type) {
         const path = getNodePath(node.id);
         if (path) affectedNodes.push({ id: node.id, path });
       }
@@ -140,7 +128,7 @@ export function useFileSystem() {
   }
 
   function getAffectedFiles(nodeId: string) {
-    return getAffectedNodes(nodeId, true);
+    return getAffectedNodes(nodeId, 'file');
   }
 
   // ============================
@@ -148,40 +136,52 @@ export function useFileSystem() {
   // ============================
 
   function setActiveFile(nodeId: string) {
+    const node = findNodeById(nodeId);
+    if (!node || node.type !== 'file') return;
     activeFileId.value = nodeId;
+    activeFilePath.value = getNodePath(nodeId);
   }
 
   function clearActiveFile() {
     activeFileId.value = null;
+    activeFilePath.value = null;
   }
 
   // ============================
   // NODE OPERATIONS
   // ============================
 
-  function createNode(parentId: string, label: string, type: NodeType, content = '') {
+  function createNode(
+    parentId: string,
+    label: string,
+    type: NodeType,
+    content = ''
+  ): string | null {
+    // TODO: do I need to return the ID?
     const parent = findNodeById(parentId);
-    if (!parent) return;
-    if (!validateLabelByNodeType(label, type)) return;
-    if (parent.type === 'folder' && !isDuplicateLabel(parent.children, label)) {
-      const node: Node = {
-        id: generateUniqueId(),
-        label,
-        type,
-        parent,
-        children: []
-      };
-      parent.children.push(node);
-      sortChildren(parent);
-      nodeMap.set(node.id, node);
-      if (node.type === 'file') {
-        const path = getNodePath(node.id);
-        if (path) {
-          createMonacoModel(path, content || `// File: ${node.label}\n`);
-        }
+    if (!parent) return null;
+    if (!validateLabelByNodeType(label, type)) return null;
+    if (parent.type !== 'folder' || isDuplicateLabel(parent.children, label)) return null;
+
+    const node: Node = {
+      id: generateUniqueId(),
+      label,
+      type,
+      parent,
+      children: []
+    };
+    parent.children.push(node);
+    sortChildren(parent);
+    nodeMap.set(node.id, node);
+    if (node.type === 'file') {
+      const path = getNodePath(node.id);
+      if (path) {
+        createMonacoModel(path, content || `// File: ${node.label}\n`);
       }
-      triggerRef(root);
     }
+    setActiveFile(node.id);
+    triggerRef(root);
+    return node.id;
   }
 
   function deleteNode(nodeId: string) {
@@ -220,6 +220,7 @@ export function useFileSystem() {
       const newPath = getNodePath(file.id);
       if (newPath) renameMonacoFile(file.path, newPath);
     });
+    setActiveFile(nodeId);
     triggerRef(root);
     return;
   }
@@ -241,7 +242,7 @@ export function useFileSystem() {
     )
       return;
 
-    // Get affected files before node removal from cuu parent
+    // Get affected files before node removal from current parent
     const affectedFiles = getAffectedFiles(nodeId);
 
     // Remove node from current parent
@@ -268,6 +269,7 @@ export function useFileSystem() {
       clearActiveFile();
     }
 
+    setActiveFile(nodeId);
     triggerRef(root);
   }
 
@@ -362,12 +364,11 @@ export function useFileSystem() {
 
   return {
     // state
-    root: readonly(root),
-    sortedNodes,
+    root: clonedRoot,
     activeFileId: readonly(activeFileId),
+    activeFilePath: readonly(activeFilePath),
     // utils
     isDuplicateLabel,
-    getNodePath,
     generateUniqueId,
     validateLabel,
     isMjsFile,
