@@ -5,7 +5,6 @@ import CommonTable from '@/components/heapdump/CommonTable.vue';
 import { hdt } from '@/components/heapdump/utils';
 import { getIcon } from '@/components/heapdump/icon-helper';
 import { prettySize } from '@/support/utils';
-import { t } from '@/i18n/i18n';
 import { useSelectedObject } from '@/composables/heapdump/selected-object';
 import { commonMenu as menu } from '@/components/heapdump/menu';
 import FileExplorer from './FileExplorer.vue';
@@ -18,7 +17,7 @@ const fileContents = ref(new Map<string, string>());
 const RESULT_TAB = 'Result';
 
 const tabs = [
-  { name: RESULT_TAB },
+  { name: RESULT_TAB, key: 'text' },
   { name: 'Console Log', key: 'stdOut' },
   { name: 'Console Error', key: 'stdErr' }
 ];
@@ -186,38 +185,25 @@ const tableProps = ref({
             <div class="output-pane">
               <el-tabs type="border-card" v-model="activeTab" class="output-tabs">
                 <el-tab-pane v-for="tab in tabs" :key="tab.name" :label="tab.name" :name="tab.name">
-                  <el-scrollbar v-if="tab.name === RESULT_TAB">
-                    <CommonTable v-bind="tableProps" v-if="showDataTable" />
-                    <el-table
-                      v-if="scriptResult?.text"
-                      size="small"
-                      :data="[scriptResult]"
-                      style="height: 100%"
-                      :header-cell-style="{
-                        background: 'var(--el-fill-color-light)',
-                        color: 'var(--el-text-color-primary)'
-                      }"
-                    >
-                      <el-table-column :label="t('common.result')">
-                        <div style="white-space: pre-wrap">{{ scriptResult.text }}</div>
-                      </el-table-column>
-                    </el-table>
+                  <el-scrollbar v-if="tab.name === RESULT_TAB && showDataTable">
+                    <CommonTable v-bind="tableProps" />
                   </el-scrollbar>
 
-                  <template v-else>
-                    <div v-if="!scriptResult?.[tab.key]?.trim()" class="empty-content">
-                      <el-text>Nothing to display</el-text>
-                    </div>
-                    <el-scrollbar v-else>
+                  <el-scrollbar v-else-if="scriptResult?.[tab.key]">
+                    <div>
                       <el-text
                         tag="pre"
                         class="console-output"
-                        :type="tab.name === 'Console Error' ? 'danger' : 'info'"
+                        :type="tab.name === 'Console Error' ? 'danger' : ''"
                       >
-                        {{ scriptResult?.[tab.key] || '' }}
+                        {{ scriptResult?.[tab.key] }}
                       </el-text>
-                    </el-scrollbar>
-                  </template>
+                    </div>
+                  </el-scrollbar>
+
+                  <div v-else class="empty-content">
+                    <el-text>Nothing to display</el-text>
+                  </div>
                 </el-tab-pane>
               </el-tabs>
             </div>
@@ -234,6 +220,12 @@ const tableProps = ref({
   height: 100%;
   border: 1px solid var(--el-border-color-light);
   border-radius: var(--el-border-radius-base);
+}
+
+.tab-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .output-pane {

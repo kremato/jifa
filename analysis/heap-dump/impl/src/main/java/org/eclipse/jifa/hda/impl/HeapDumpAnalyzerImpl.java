@@ -1305,7 +1305,7 @@ public class HeapDumpAnalyzerImpl implements HeapDumpAnalyzer {
             oqlResult = new OQLResult.TextResult((new TextResult(e.getMessage())).getText());
         } finally {
             if (oqlResult == null)
-                oqlResult = new OQLResult.TextResult("No Result");
+                oqlResult = new OQLResult.TextResult("");
         }
         return new ScriptResult(oqlResult, out.toString(), err.toString());
     }
