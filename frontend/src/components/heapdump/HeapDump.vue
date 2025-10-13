@@ -29,7 +29,7 @@ import DuplicateClasses from '@/components/heapdump/DuplicateClasses.vue';
 import LeakSuspects from '@/components/heapdump/LeakSuspects.vue';
 import DynamicTabs from '@/components/heapdump/DynamicTabs.vue';
 import { MoreFilled } from '@element-plus/icons-vue';
-import { listenAll } from '@/components/heapdump/event-bus';
+import { listenToAnalysisEvents } from '@/components/heapdump/event-bus';
 import { makeFirstLetterLowercase } from '@/support/utils';
 import { useDebouncedRef } from '@/composables/debounced-ref';
 import { useSelectedObject } from '@/composables/heapdump/selected-object';
@@ -39,7 +39,7 @@ const lastActiveTab = ref();
 
 const nameOfDynamicTabs = 'DynamicTabs';
 
-listenAll(() => {
+listenToAnalysisEvents(() => {
   if (activeTab.value !== nameOfDynamicTabs) {
     lastActiveTab.value = activeTab.value;
     activeTab.value = nameOfDynamicTabs;

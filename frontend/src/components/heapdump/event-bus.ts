@@ -42,3 +42,20 @@ export function listen(event: EventType, handler: any) {
 export function listenAll(handler: any) {
   emitter.on('*', handler);
 }
+
+function isAnalysisEvent(type: keyof typeof EventType): boolean {
+  return ![
+    EventType.FILE_RENAME,
+    EventType.FILE_DELETE,
+    EventType.FILE_CREATE,
+    EventType.FOLDER_CREATE
+  ].includes(EventType[type]);
+}
+
+export function listenToAnalysisEvents(handler: any) {
+  listenAll((...args: any) => {
+    if (isAnalysisEvent(args[0])) {
+      handler(...args);
+    }
+  });
+}
