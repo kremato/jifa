@@ -373,6 +373,7 @@ export function useFileSystem() {
     validateLabel,
     isMjsFile,
     forbiddenChars: [...forbiddenChars],
+    getNodePath,
     // node operations
     createNode,
     deleteNode,

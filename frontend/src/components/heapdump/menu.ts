@@ -12,7 +12,9 @@
  ********************************************************************************/
 import { emit, EventType } from '@/components/heapdump/event-bus';
 import { hdt } from '@/components/heapdump/utils';
-import { item, menu, subMenu } from '@/composables/contextmenu';
+import { item, menu, subMenu, type Item, type SubMenu } from '@/composables/contextmenu';
+import { useMonacoFileManager } from '@/composables/heapdump/monaco-file-manager';
+import { useFileSystem, type Node } from '@/composables/heapdump/scripts-file-system';
 
 function title(key: string) {
   return () => hdt(`contextmenu.${key}`);
@@ -42,16 +44,72 @@ const mergedPathToGCRoots = item(title('mergedPathToGCRoots'), (payload) =>
   emit(EventType.MERGED_PATH_TO_GC_ROOTS, payload)
 );
 
-export const commonMenu = menu([
-  subMenu(title('referencesByObject'), [referencesByObject_outbounds, referencesByObject_inbounds]),
-  subMenu(
-    title('referencesByClass'),
-    [referencesByClass_outbounds, referencesByClass_inbounds],
-    true
-  ),
-  pathToGCRoots,
-  mergedPathToGCRoots
-]);
+const scriptSubmenu = (): Item | SubMenu => {
+  const { root, getNodePath } = useFileSystem();
+  const { getExports } = useMonacoFileManager();
+  const jifa = root.value.children.find((node) => node.label === 'jifa');
+  if (!jifa || !jifa.children)
+    return item(
+      () => 'Scripts',
+      () => {},
+      true
+    );
+
+  const buidMenuItems = (node: Node): SubMenu | Item => {
+    if (node.type === 'file') {
+      let path = getNodePath(node.id);
+      if (!path)
+        return item(
+          () => node.label,
+          () => {}
+        );
+      if (path.startsWith('/')) path = path.slice(1);
+      const exports = getExports(path) || [];
+      const items = exports.map((funcName) => {
+        return item(
+          () => funcName,
+          (payload) => {
+            emit(EventType.EXECUTE_SCRIPT_FUNCTION, {
+              objectId: payload.objectId,
+              label: `${path}#${funcName}`,
+              scriptPath: path,
+              funcToExecute: funcName
+            });
+          }
+        );
+      });
+      return subMenu(() => node.label, items);
+    }
+    const items: (Item | SubMenu)[] = [];
+    node.children.forEach((child) => items.push(buidMenuItems(child)));
+    return subMenu(() => node.label, items);
+  };
+
+  const items: (Item | SubMenu)[] = [];
+  jifa.children.forEach((node) => {
+    items.push(buidMenuItems(node));
+  });
+
+  return subMenu(() => 'Scripts', items, true);
+};
+
+export const commonMenu = {
+  get items() {
+    return menu([
+      subMenu(title('referencesByObject'), [
+        referencesByObject_outbounds,
+        referencesByObject_inbounds
+      ]),
+      subMenu(title('referencesByClass'), [
+        referencesByClass_outbounds,
+        referencesByClass_inbounds
+      ]),
+      scriptSubmenu(),
+      pathToGCRoots,
+      mergedPathToGCRoots
+    ]).items;
+  }
+};
 
 const rename = item(title('rename'), (payload) => {
   emit(EventType.FILE_RENAME, payload);

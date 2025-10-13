@@ -26,7 +26,9 @@ export enum EventType {
   FILE_RENAME,
   FILE_DELETE,
   FILE_CREATE,
-  FOLDER_CREATE
+  FOLDER_CREATE,
+
+  EXECUTE_SCRIPT_FUNCTION
 }
 
 export function emit(event: EventType, payload: any) {

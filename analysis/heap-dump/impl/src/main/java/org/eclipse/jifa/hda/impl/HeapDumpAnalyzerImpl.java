@@ -1282,7 +1282,7 @@ public class HeapDumpAnalyzerImpl implements HeapDumpAnalyzer {
     }
 
     @Override
-    public ScriptResult getScriptResult(String entryPath, Map<String, String> payload) {
+    public ScriptResult getScriptResult(String entryPath, Map<String, String> payload, String exportedMember, boolean executeExportedMember, Object[] exportedMemberArgs) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         OQLResult oqlResult = null;
@@ -1299,8 +1299,14 @@ public class HeapDumpAnalyzerImpl implements HeapDumpAnalyzer {
             Source entrySource = Source.newBuilder("js", entryCode, entryPath).build();
             context.getBindings("js").putMember("snapshot", this.context.snapshot);
             Value result = context.eval(entrySource);
-            if (result.hasMember("result"))
-                oqlResult = resolveScriptResult(result.getMember("result"));
+            if (result.hasMember(exportedMember)) {
+                Value member = result.getMember(exportedMember);
+                if (executeExportedMember && member.canExecute()) {
+                    oqlResult = resolveScriptResult(member.execute(exportedMemberArgs));
+                } else {
+                    oqlResult = resolveScriptResult(member);
+                }
+            }
         } catch (Exception e) {
             oqlResult = new OQLResult.TextResult((new TextResult(e.getMessage())).getText());
         } finally {

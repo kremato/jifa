@@ -18,6 +18,7 @@ import { hdt } from '@/components/heapdump/utils';
 import ClassReferences from '@/components/heapdump/ClassReferences.vue';
 import PathToGCRoots from '@/components/heapdump/PathToGCRoots.vue';
 import MergedPathToGCRoots from '@/components/heapdump/MergedPathToGCRoots.vue';
+import ScriptFunctionResult from '@/components/heapdump/ScriptFunctionResult.vue';
 
 let tabId = 1;
 
@@ -96,6 +97,14 @@ listen(EventType.MERGED_PATH_TO_GC_ROOTS, (payload) => {
     byHistogram
   });
 });
+
+listen(EventType.EXECUTE_SCRIPT_FUNCTION, ({ objectId, label, scriptPath, funcToExecute }) =>
+  createTab('scriptFunctionResult', label, ScriptFunctionResult, {
+    objectId,
+    scriptPath,
+    funcToExecute
+  })
+);
 </script>
 <template>
   <el-tabs

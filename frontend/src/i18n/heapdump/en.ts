@@ -90,7 +90,8 @@ export default {
     classOutbounds: 'Outgoing References',
     classInbounds: 'Incoming References',
     pathToGCRoots: 'Path to GC Roots',
-    mergedPathToGCRoots: 'Merged Path to GC Roots'
+    mergedPathToGCRoots: 'Merged Path to GC Roots',
+    scriptFunctionResult: 'Script Function Result'
   },
 
   contextmenu: {
