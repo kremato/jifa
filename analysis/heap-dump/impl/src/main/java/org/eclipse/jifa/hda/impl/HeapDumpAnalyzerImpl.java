@@ -1282,36 +1282,34 @@ public class HeapDumpAnalyzerImpl implements HeapDumpAnalyzer {
     }
 
     @Override
-    public ScriptResult getScriptResult(String entryPath, Map<String, String> payload, String exportedMember, boolean executeExportedMember, Object[] exportedMemberArgs) {
+    public ScriptResult getScriptResult(String entryPath, Map<String, String> sourceMap, String exportedFuncName, Integer objectId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
-        OQLResult oqlResult = null;
+        OQLResult oqlResult;
         try (Context context = Context.newBuilder()
                 .allowAllAccess(true)
-                .fileSystem(new InMemoryFileSystem(payload))
+                .fileSystem(new InMemoryFileSystem(sourceMap))
                 .allowExperimentalOptions(true)
-                .option("js.esm-eval-returns-exports", "true")
+                .option("js.esm-eval-returns-exports", exportedFuncName != null ? "true" : "false")
                 .hostClassLoader(this.context.snapshot.getClass().getClassLoader())
                 .out(out)
                 .err(err)
                 .build()) {
-            String entryCode = payload.get(entryPath);
+            String entryCode = sourceMap.get(entryPath);
             Source entrySource = Source.newBuilder("js", entryCode, entryPath).build();
             context.getBindings("js").putMember("snapshot", this.context.snapshot);
             Value result = context.eval(entrySource);
-            if (result.hasMember(exportedMember)) {
-                Value member = result.getMember(exportedMember);
-                if (executeExportedMember && member.canExecute()) {
-                    oqlResult = resolveScriptResult(member.execute(exportedMemberArgs));
-                } else {
-                    oqlResult = resolveScriptResult(member);
-                }
+            if (exportedFuncName != null) {
+                if (!result.hasMember(exportedFuncName))
+                    throw new AnalysisException(String.format("%s has no exported member named \"%s\"", entryPath, exportedFuncName));
+                Value member = result.getMember(exportedFuncName);
+                if (!member.canExecute())
+                    throw new AnalysisException(String.format("\"%s\" is not executable", exportedFuncName));
+                result = member.execute(objectId);
             }
+            oqlResult = resolveScriptResult(result);
         } catch (Exception e) {
             oqlResult = new OQLResult.TextResult((new TextResult(e.getMessage())).getText());
-        } finally {
-            if (oqlResult == null)
-                oqlResult = new OQLResult.TextResult("");
         }
         return new ScriptResult(oqlResult, out.toString(), err.toString());
     }

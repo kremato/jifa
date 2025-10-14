@@ -139,7 +139,10 @@ public interface HeapDumpAnalyzer {
     LeakReport getLeakReport();
 
     @ApiMeta(aliases = "script")
-    ScriptResult getScriptResult(String entryPath, Map<String, String> payload, String exportedMember, boolean executeExportedMember, Object[] exportedMemberArgs);
+    ScriptResult getScriptResult(String entryPath,
+                                 Map<String, String> sourceMap,
+                                 @ApiParameterMeta(required = false) String exportedFuncName,
+                                 @ApiParameterMeta(required = false) Integer objectId);
 
     @ApiMeta(aliases = "oql")
     OQLResult getOQLResult(String oql, String sortBy, boolean ascendingOrder, int page, int pageSize);

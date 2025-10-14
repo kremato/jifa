@@ -86,10 +86,7 @@ const tableProps = ref({
       parameters() {
         return {
           entryPath: activeFilePath.value,
-          payload: Object.fromEntries(fileContents.value),
-          exportedMember: 'result',
-          executeExportedMember: false,
-          exportedMemberArgs: []
+          sourceMap: Object.fromEntries(fileContents.value)
         };
       },
       respMapper(r) {

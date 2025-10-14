@@ -62,10 +62,9 @@ const tableProps = ref({
       parameters() {
         return {
           entryPath: props.scriptPath,
-          payload: Object.fromEntries(getAllMonacoFiles()),
-          exportedMember: props.funcToExecute,
-          executeExportedMember: true,
-          exportedMemberArgs: [props.objectId]
+          sourceMap: Object.fromEntries(getAllMonacoFiles()),
+          exportedFuncName: props.funcToExecute,
+          objectId: props.objectId
         };
       },
       respMapper(r) {
