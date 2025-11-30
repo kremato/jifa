@@ -68,8 +68,10 @@ import org.eclipse.mat.snapshot.model.ObjectReference;
 import org.eclipse.mat.snapshot.query.Icons;
 import org.eclipse.mat.snapshot.query.SnapshotQuery;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.io.IOAccess;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.ref.Cleaner;
@@ -1282,22 +1284,40 @@ public class HeapDumpAnalyzerImpl implements HeapDumpAnalyzer {
     }
 
     @Override
-    public ScriptResult getScriptResult(String entryPath, Map<String, String> sourceMap, String exportedFuncName, Integer objectId) {
+    public ScriptResult getScriptResult(
+            String entryPath,
+            Map<String, String> sourceMap,
+            String exportedFuncName,
+            Integer objectId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         OQLResult oqlResult;
-        try (Context context = Context.newBuilder()
-                .allowAllAccess(true)
-                .fileSystem(new InMemoryFileSystem(sourceMap))
+        String language = "js";
+        ISnapshot snapshot = context.snapshot;
+        try (Context context = Context.newBuilder(language)
+                .allowHostAccess(HostAccess.ALL)
+                .allowHostClassLookup(fqcn ->
+                        (fqcn.startsWith("org.eclipse.mat") && !fqcn.startsWith("org.eclipse.mat.snapshot.SnapshotFactory"))
+                                || fqcn.startsWith("java.lang.Boolean")
+                                || fqcn.startsWith("java.lang.Byte")
+                                || fqcn.startsWith("java.lang.Short")
+                                || fqcn.startsWith("java.lang.Integer")
+                                || fqcn.startsWith("java.lang.Long")
+                                || fqcn.startsWith("java.lang.Float")
+                                || fqcn.startsWith("java.lang.Double")
+                                || fqcn.startsWith("java.lang.Character")
+                                || fqcn.startsWith("java.lang.String"))
+                .allowIO(IOAccess.newBuilder().fileSystem(new InMemoryFileSystem(sourceMap)).build())
                 .allowExperimentalOptions(true)
                 .option("js.esm-eval-returns-exports", exportedFuncName != null ? "true" : "false")
-                .hostClassLoader(this.context.snapshot.getClass().getClassLoader())
+                .hostClassLoader(snapshot.getClass().getClassLoader())
                 .out(out)
                 .err(err)
                 .build()) {
             String entryCode = sourceMap.get(entryPath);
-            Source entrySource = Source.newBuilder("js", entryCode, entryPath).build();
-            context.getBindings("js").putMember("snapshot", this.context.snapshot);
+            Source entrySource = Source.newBuilder(language, entryCode, entryPath).build();
+            context.getBindings(language)
+                    .putMember("snapshot", snapshot);
             Value result = context.eval(entrySource);
             if (exportedFuncName != null) {
                 if (!result.hasMember(exportedFuncName))
