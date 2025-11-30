@@ -5,14 +5,14 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.NonWritableChannelException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.*;
 import java.nio.file.attribute.FileAttribute;
 import java.util.*;
 
 public class InMemoryFileSystem implements FileSystem {
-    private final Map<String, byte[]> files = new HashMap<>();
-    private final Path virtualRoot = Paths.get("/");
+    private final Map<String, byte[]> files = new HashMap<>();  // normalized path -> content bytes
 
     public InMemoryFileSystem(Map<String, String> sourceMap) {
         // Store file contents as bytes
@@ -49,19 +49,19 @@ public class InMemoryFileSystem implements FileSystem {
         if (path == null) {
             throw new IllegalArgumentException("Null path");
         }
-        return virtualRoot.resolve(path).normalize();
+        return Paths.get(path).normalize();
     }
 
     @Override
     public void checkAccess(Path path, Set<? extends AccessMode> modes, LinkOption... linkOptions) throws IOException {
-        String key = normalizePath(virtualRoot.relativize(path).toString());
+        String key = path.toString();
         if (!files.containsKey(key)) {
             throw new NoSuchFileException(path.toString());
         }
         // Only READ access is supported
         for (AccessMode mode : modes) {
             if (mode != AccessMode.READ) {
-                throw new AccessDeniedException("Read-only file system: " + path);
+                throw new SecurityException("Read-only file system: " + path);
             }
         }
     }
@@ -77,16 +77,16 @@ public class InMemoryFileSystem implements FileSystem {
     @Override
     public SeekableByteChannel newByteChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs)
             throws IOException {
-        String virtualPath = normalizePath(virtualRoot.relativize(path).toString());
-        byte[] content = files.get(virtualPath);
+        String key = normalizePath(path.toString());
+        byte[] content = files.get(key);
         if (content == null) {
-            throw new NoSuchFileException("File not found: " + virtualPath);
+            throw new NoSuchFileException("File not found: " + key);
         }
         // Only allow read access
         boolean writeRequested = options.stream().anyMatch(opt ->
                 opt == StandardOpenOption.WRITE || opt == StandardOpenOption.APPEND || opt == StandardOpenOption.CREATE || opt == StandardOpenOption.CREATE_NEW);
         if (writeRequested) {
-            throw new UnsupportedOperationException("File system is read-only");
+            throw new SecurityException("File system is read-only");
         }
         // Return a SeekableByteChannel that reads from the byte array
         return new SeekableByteChannel() {
@@ -112,13 +112,13 @@ public class InMemoryFileSystem implements FileSystem {
                 return bytesToRead;
             }
             @Override public SeekableByteChannel truncate(long size) throws IOException {
-                throw new UnsupportedOperationException("Read-only channel");
+                throw new NonWritableChannelException();
             }
             @Override public long size() throws IOException {
                 return content.length;
             }
             @Override public int write(ByteBuffer src) throws IOException {
-                throw new UnsupportedOperationException("Read-only channel");
+                throw new NonWritableChannelException();
             }
             @Override public void close() throws IOException {
                 open = false;
