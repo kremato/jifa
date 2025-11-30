@@ -47,24 +47,16 @@ const mergedPathToGCRoots = item(title('mergedPathToGCRoots'), (payload) =>
 const scriptSubmenu = (): Item | SubMenu => {
   const { root, getNodePath } = useFileSystem();
   const { getExports } = useMonacoFileManager();
-  const jifa = root.value.children.find((node) => node.label === 'jifa');
-  if (!jifa || !jifa.children)
-    return item(
-      () => 'Scripts',
-      () => {},
-      true
-    );
+
+  const isSubMenu = (item: Item | SubMenu): item is SubMenu => 'items' in item;
 
   const buidMenuItems = (node: Node): SubMenu | Item => {
     if (node.type === 'file') {
       let path = getNodePath(node.id);
-      if (!path)
-        return item(
-          () => node.label,
-          () => {}
-        );
+      if (!path) return subMenu(() => node.label, []);
       if (path.startsWith('/')) path = path.slice(1);
       const exports = getExports(path) || [];
+      if (exports.length === 0) return subMenu(() => node.label, []);
       const items = exports.map((funcName) => {
         return item(
           () => funcName,
@@ -80,15 +72,29 @@ const scriptSubmenu = (): Item | SubMenu => {
       });
       return subMenu(() => node.label, items);
     }
+
     const items: (Item | SubMenu)[] = [];
-    node.children.forEach((child) => items.push(buidMenuItems(child)));
+    node.children.forEach((child) => {
+      const menuItem = buidMenuItems(child);
+      if (isSubMenu(menuItem) && menuItem.items.length > 0) items.push(menuItem);
+    });
+
     return subMenu(() => node.label, items);
   };
 
   const items: (Item | SubMenu)[] = [];
-  jifa.children.forEach((node) => {
-    items.push(buidMenuItems(node));
+
+  root.value.children.forEach((node) => {
+    const menuItems = buidMenuItems(node);
+    if (!(isSubMenu(menuItems) && menuItems.items.length == 0)) items.push(buidMenuItems(node));
   });
+
+  if (items.length === 0)
+    return item(
+      () => 'Scripts',
+      () => {},
+      true
+    );
 
   return subMenu(() => 'Scripts', items, true);
 };

@@ -1,4 +1,5 @@
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import { findExportsForContextMenu } from './context-menu-exports';
 
 export function useMonacoFileManager() {
   function createMonacoModel(path: string, content: string = '') {
@@ -58,7 +59,7 @@ export function useMonacoFileManager() {
     const model = monaco.editor.getModel(monaco.Uri.file(path));
     if (!model) return null;
     const content = model.getValue();
-    return parseFunctionExports(content);
+    return findExportsForContextMenu(content).map(exp => exp.exportedAs);
   }
 
   return {
