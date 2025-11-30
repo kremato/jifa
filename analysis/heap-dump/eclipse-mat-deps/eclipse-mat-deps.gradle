@@ -113,6 +113,7 @@ def depsDirPath =
                 mat_deps_dir_name = depsDirName
                 mat_deps_dir_path = depsDirPath.toAbsolutePath().toString()
                 osgi_jar = 'org.eclipse.osgi-3.18.200.jar'
+                graalvm_polyglot_version = '25.0.0'
             }
         }
 }

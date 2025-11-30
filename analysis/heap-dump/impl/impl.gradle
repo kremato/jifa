@@ -45,6 +45,9 @@ dependencies {
         include "org.eclipse.mat.hprof_*.jar"
     }
 
+    compileOnly("org.graalvm.polyglot:polyglot:${graalvm_polyglot_version}")
+    compileOnly("org.graalvm.polyglot:js:${graalvm_polyglot_version}")
+
     testImplementation project(':analysis:heap-dump:provider')
 }
 

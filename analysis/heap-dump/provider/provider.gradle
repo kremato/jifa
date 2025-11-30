@@ -21,6 +21,9 @@ dependencies {
     implementation project(':analysis:heap-dump:api')
 
     implementation files("${mat_deps_dir_path}/${osgi_jar}")
+    
+    runtimeOnly("org.graalvm.polyglot:polyglot:${graalvm_polyglot_version}")
+    runtimeOnly("org.graalvm.polyglot:js:${graalvm_polyglot_version}")
 }
 
 compileJava.dependsOn(':analysis:heap-dump:impl:installJar')
