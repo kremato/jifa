@@ -31,6 +31,10 @@ public class InMemoryFileSystem implements FileSystem {
         return path;
     }
 
+    private String toPathKey(Path path) {
+        return normalizePath(Paths.get("/").resolve(path).normalize().toString());
+    }
+
     @Override
     public Path parsePath(URI uri) {
         if (uri == null) {
@@ -54,7 +58,7 @@ public class InMemoryFileSystem implements FileSystem {
 
     @Override
     public void checkAccess(Path path, Set<? extends AccessMode> modes, LinkOption... linkOptions) throws IOException {
-        String key = path.toString();
+        String key = toPathKey(path);
         if (!files.containsKey(key)) {
             throw new NoSuchFileException(path.toString());
         }
@@ -77,7 +81,7 @@ public class InMemoryFileSystem implements FileSystem {
     @Override
     public SeekableByteChannel newByteChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs)
             throws IOException {
-        String key = normalizePath(path.toString());
+        String key = toPathKey(path);
         byte[] content = files.get(key);
         if (content == null) {
             throw new NoSuchFileException("File not found: " + key);
