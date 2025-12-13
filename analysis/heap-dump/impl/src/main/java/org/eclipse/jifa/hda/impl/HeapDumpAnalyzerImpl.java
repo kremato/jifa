@@ -1294,22 +1294,23 @@ public class HeapDumpAnalyzerImpl implements HeapDumpAnalyzer {
         OQLResult oqlResult;
         String language = "js";
         ISnapshot snapshot = context.snapshot;
+        String exports = exportedFuncName != null ? "true" : "false";
         try (Context context = Context.newBuilder(language)
                 .allowHostAccess(HostAccess.ALL)
                 .allowHostClassLookup(fqcn ->
                         (fqcn.startsWith("org.eclipse.mat") && !fqcn.startsWith("org.eclipse.mat.snapshot.SnapshotFactory"))
-                                || fqcn.startsWith("java.lang.Boolean")
-                                || fqcn.startsWith("java.lang.Byte")
-                                || fqcn.startsWith("java.lang.Short")
-                                || fqcn.startsWith("java.lang.Integer")
-                                || fqcn.startsWith("java.lang.Long")
-                                || fqcn.startsWith("java.lang.Float")
-                                || fqcn.startsWith("java.lang.Double")
-                                || fqcn.startsWith("java.lang.Character")
-                                || fqcn.startsWith("java.lang.String"))
+                                || fqcn.equals("java.lang.Boolean")
+                                || fqcn.equals("java.lang.Byte")
+                                || fqcn.equals("java.lang.Short")
+                                || fqcn.equals("java.lang.Integer")
+                                || fqcn.equals("java.lang.Long")
+                                || fqcn.equals("java.lang.Float")
+                                || fqcn.equals("java.lang.Double")
+                                || fqcn.equals("java.lang.Character")
+                                || fqcn.equals("java.lang.String"))
                 .allowIO(IOAccess.newBuilder().fileSystem(new InMemoryFileSystem(sourceMap)).build())
                 .allowExperimentalOptions(true)
-                .option("js.esm-eval-returns-exports", exportedFuncName != null ? "true" : "false")
+                .option("js.esm-eval-returns-exports", exports)
                 .hostClassLoader(snapshot.getClass().getClassLoader())
                 .out(out)
                 .err(err)
